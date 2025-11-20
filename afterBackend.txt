@@ -1,0 +1,2 @@
+in client after completing backend, we need new packages like will install axios what we can api calls, and will import react hot toast, so that we can display toast notification, and we will also add socket.io client , using that we enable real time chat messaging
+//npm install react-hot-toast axios socket.io-client

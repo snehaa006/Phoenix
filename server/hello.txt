@@ -1,0 +1,19 @@
+1. (all dependencies installed to create backend)
+npm init -y // used this to add package json files
+npm install bcryptjs //to encrypt passwords that are going to be stored in mongodb database
+npm install cloudinary //to upload profile or chat images in cloud storage
+npm install cors //allows backend to connect with any frontend url
+npm install dotenv // we can use environment variables in our backend server
+npm instll express //to create backend server
+npm install jsonwebtoken // using that we can generate token and will authenticate users using this token
+mongoose //using this we can connect our project with mongodb database
+socket.io // enable real time chat messaging
+ 
+
+2. node_modules folder gets created which contains all our packages
+3. we add type in package.json as bydefault its commonjs, will change it to module(we can use import statement in the project due to this)
+4.to start the server we write node server.js but we have to restart it after making any chnages so to avoid that we add 
+npm install nodemon //now we can start server using nodemon // but before that we chnage the script
+instead of test add server and in that value add server nodemon server.js
+
+//now to start we just write npm run server in our server intergated terminal
