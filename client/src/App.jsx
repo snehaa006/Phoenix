@@ -14,7 +14,7 @@ const App = () => {
   const {authUser} = useContext(AuthContext) //checkauth function updates auth user 
 
   return (
-    <div className="bg-[url('./src/assets/bgImage8.jpg')] bg-contain">
+    <div className="bg-[url('/bgImage8.jpg')] bg-contain">
       <Toaster/>
         <Routes>
           <Route path="/" element={authUser? <HomePage />: <Navigate to = "/login"/>} />
