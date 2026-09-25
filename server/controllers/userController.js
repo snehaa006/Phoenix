@@ -1,29 +1,39 @@
-//will create fucntion which we use to create user, which allow user to loginand authenticate user and will create function to update user profile
+//functions to sign up, log in, authenticate and update a user's profile
 import bcrypt from "bcryptjs"
 import User from "../models/User.js";
-import { generateToken } from "../lib/utils.js";
-import cloudinary from "../lib/cloudinary.js ";
+import { generateToken, toPublicUser } from "../lib/utils.js";
+import cloudinary from "../lib/cloudinary.js";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 //SignUp new user
-
 export const signup = async (req, res)=>{
-    const {fullName, email, password, bio} = req.body;
+    const fullName = req.body.fullName?.trim();
+    const email = req.body.email?.trim().toLowerCase();
+    const password = req.body.password;
+    const bio = req.body.bio?.trim() || "";
 
     try{
-        if(!fullName || !email || !password || !bio){
-            return res.json({success: false, message: "Missing Details"})
+        if(!fullName || !email || !password){
+            return res.json({success: false, message: "Please fill in your name, email and password"})
+        }
+        if(!EMAIL_REGEX.test(email)){
+            return res.json({success: false, message: "Please enter a valid email address"})
+        }
+        if(password.length < 6){
+            return res.json({success: false, message: "Password must be at least 6 characters"})
         }
         const user =  await User.findOne({email});
         if(user){
-            return res.json({success: false, message: "Account already exits"});
+            return res.json({success: false, message: "An account with this email already exists"});
         }
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newUser = await User.create({fullName, email, password: hashedPassword,bio}); //mongoDB creates id automatically., every mongoDB document must haev an _id, therefore we use it directly in tokens
+        const newUser = await User.create({fullName, email, password: hashedPassword, bio});
         const token = generateToken(newUser._id);
-        res.json({success: true, userData: newUser, token, message: "Account created Successfully"})
+        res.json({success: true, userData: toPublicUser(newUser), token, message: "Account created successfully"})
     }catch(error){
         console.log(error.message);
         res.json({success: false,  message: error.message})
@@ -33,14 +43,18 @@ export const signup = async (req, res)=>{
 //Controller to login a user
 export const login = async (req, res)=> {
     try{
-        const {email, password} = req.body;
+        const email = req.body.email?.trim().toLowerCase();
+        const password = req.body.password;
+        if(!email || !password){
+            return res.json({success: false, message: "Please enter your email and password"})
+        }
         const userData = await User.findOne({email});
-        const isPasswordCorrect = await bcrypt.compare(password, userData.password);
-        if(!isPasswordCorrect){
-            return res.json({success: false,  message: "Invalid Credentials"})
+        //same message for unknown email and wrong password, so accounts can't be enumerated
+        if(!userData || !(await bcrypt.compare(password, userData.password))){
+            return res.json({success: false,  message: "Invalid email or password"})
         }
         const token = generateToken(userData._id);
-        res.json({success: true, userData, token, message: "Login Successful"}) 
+        res.json({success: true, userData: toPublicUser(userData), token, message: `Welcome back, ${userData.fullName.split(" ")[0]}!`}) 
     }catch(error){
         console.log(error.message);
         res.json({success: false,  message: error.message})
@@ -48,7 +62,6 @@ export const login = async (req, res)=> {
 }
 
 //Controller to check if user is authenticated
-
 export const checkAuth = (req, res) => {
     res.json({success: true, user: req.user});
 }
@@ -56,16 +69,21 @@ export const checkAuth = (req, res) => {
 //controller to update user profile details
 export const updateProfile = async(req, res)=>{
     try{
-        const {profilePic, bio, fullName} = req.body;
+        const {profilePic} = req.body;
+        const fullName = req.body.fullName?.trim();
+        const bio = req.body.bio?.trim() ?? "";
         const userId = req.user._id;
-        let updatedUser;
-        if(!profilePic){
-            updatedUser = await User.findByIdAndUpdate(userId, {bio, fullName}, {new: true});
+
+        if(!fullName){
+            return res.json({success: false, message: "Name cannot be empty"});
         }
-        else{
+
+        const update = {bio, fullName};
+        if(profilePic){
             const upload = await cloudinary.uploader.upload(profilePic);
-            updatedUser = await User.findByIdAndUpdate(userId, {profilePic: upload.secure_url, bio, fullName}, {new: true});
+            update.profilePic = upload.secure_url;
         }
+        const updatedUser = await User.findByIdAndUpdate(userId, update, {new: true, runValidators: true}).select("-password");
         res.json({success: true, user: updatedUser});
 
     }catch(error){

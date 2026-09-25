@@ -6,10 +6,9 @@ export const protectRoute = async (req, res, next) => {
         const token = req.headers.token; // token from frontend
 
         if (!token) {
-            return res.json({ success: false, message: "No token provided" });
+            return res.json({ success: false, message: "Not authorized, please log in" });
         }
 
-        // Decode token (no .select here)
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // Find user and remove password
@@ -23,6 +22,7 @@ export const protectRoute = async (req, res, next) => {
         next();
     } catch (error) {
         console.log(error.message);
-        res.json({ success: false, message: error.message });
+        const message = error.name === "TokenExpiredError" ? "Session expired, please log in again" : "Not authorized, please log in";
+        res.json({ success: false, message });
     }
 };
