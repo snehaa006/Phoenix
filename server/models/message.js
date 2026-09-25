@@ -6,7 +6,7 @@ const messageSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User", //user model
             required: true,
-        }   ,
+        },
         recieverId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User", //user model
@@ -14,7 +14,9 @@ const messageSchema = new mongoose.Schema(
         },
         text: {
             type: String,
-        } ,
+            trim: true,
+            maxlength: 2000,
+        },
         image: {
             type: String,
         },
@@ -28,5 +30,9 @@ const messageSchema = new mongoose.Schema(
     }
 )
 
-const Message = mongoose.model("Message", messageSchema); //user is model name
+//conversation lookups and unread counts
+messageSchema.index({ senderId: 1, recieverId: 1, createdAt: 1 });
+messageSchema.index({ recieverId: 1, seen: 1 });
+
+const Message = mongoose.model("Message", messageSchema);
 export default Message;

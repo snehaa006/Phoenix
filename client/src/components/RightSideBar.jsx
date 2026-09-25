@@ -1,65 +1,72 @@
-import React, { useContext, useEffect, useState } from "react";
-import assets from "../assets/assets";
+import React, { useContext, useMemo } from "react";
 import { ChatContext } from "../../context/ChatContext.jsx";
 import { AuthContext } from "../../context/AuthContext.jsx";
+import Avatar from "./Avatar";
+import { CloseIcon, ImageIcon, MailIcon } from "./Icons";
 
-const RightSideBar = () => {
-  const {selectedUser, messages} = useContext(ChatContext);
-  const {logout, onlineUsers} = useContext(AuthContext)
+//contact details + shared media for the open conversation
+const RightSideBar = ({ onClose, onOpenImage }) => {
+  const { selectedUser, messages } = useContext(ChatContext);
+  const { onlineUsers } = useContext(AuthContext);
 
-  const [msgImages, setMsgImages] = useState([]);
+  const media = useMemo(() => messages.filter((m) => m.image).map((m) => m.image).reverse(), [messages]);
 
-  //get all images from the messages nd set them to state
-  useEffect(()=>{
-    setMsgImages(
-      messages.filter((msg)=> msg.image).map((msg)=> msg.image)
-    )
-  }, [messages])
+  if (!selectedUser) return null;
+  const online = onlineUsers.includes(selectedUser._id);
 
   return (
-    selectedUser && (
-      <div
-        className={`bg-[#8185B2]/10 text-white w-full relative overflow-y-scroll ${
-          selectedUser ? "max-md:hidden" : ""
-        }`}
-      >
-        <div className="pt-16 flex flex-col items-center gap-2 text-xs font-light mx-auto">
-          <img
-            src={selectedUser?.profilePic || assets.avatar_icon}
-            alt=""
-            className="w-20 aspect-square rounded-full"
-          />
-          <h1 className="px-10 text-xl font-medium mx-auto flex items-center gap-2">
-            {onlineUsers.includes(selectedUser._id) && <p className="w-2 h-2 rounded-full bg-green-500"> </p>}
-            {selectedUser.fullName}
-          </h1>
-          <p className="px-10 mx-auto">{selectedUser.bio}</p>
-        </div>
-        <hr className="border-[#ffffff50] my-4" />
-        <div className="px-5 text-xs">
-          <p>Media</p>
-          <div className="mt-2 max-h-[400px] overflow-y-auto grid grid-cols-2 gap-4">
-            {msgImages.map((url, index) => (
-              <div
-                key={index}
-                onClick={() => window.open(url)}
-                className="cursor-pointer rounded-md overflow-hidden"
-              >
-                <img
-                  src={url}
-                  alt=""
-                  className="w-full h-auto object-contain rounded-md"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        <button onClick={()=>logout()}
-        className='absolute bottom-5 left-1/2 transform -translate-x-1/2 bg-linear-to-r from-purple-400 to-violet-600 text-white border-none text-sm font-light py-2 px-20 rounded-full cursor-pointer'>
-          Logout
-        </button>
+    <aside className="h-full min-h-0 flex flex-col border-l border-white/10 bg-ink-900/80 max-lg:bg-ink-900 animate-fade-in">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <p className="font-medium">Contact info</p>
+        <button onClick={onClose} className="icon-btn" aria-label="Close contact info"><CloseIcon /></button>
       </div>
-    )
+
+      <div className="flex-1 overflow-y-auto scroll-thin">
+        <div className="flex flex-col items-center gap-2 px-6 pt-8 pb-6 text-center">
+          <Avatar user={selectedUser} size="xl" online={online} />
+          <h2 className="mt-2 text-xl font-semibold">{selectedUser.fullName}</h2>
+          <span className={`rounded-full px-2.5 py-0.5 text-xs ${online ? "bg-emerald-400/15 text-emerald-300" : "bg-white/5 text-slate-400"}`}>
+            {online ? "Online" : "Offline"}
+          </span>
+        </div>
+
+        <div className="mx-4 space-y-4 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/5">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-slate-500">About</p>
+            <p className="mt-1 text-sm text-slate-200 whitespace-pre-wrap">{selectedUser.bio || "No bio yet."}</p>
+          </div>
+          {selectedUser.email && (
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-slate-500">Email</p>
+              <a href={`mailto:${selectedUser.email}`} className="mt-1 flex items-center gap-2 text-sm text-brand-300 hover:underline break-all">
+                <MailIcon className="w-4 h-4 shrink-0" /> {selectedUser.email}
+              </a>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[11px] uppercase tracking-wider text-slate-500">Shared media</p>
+            <span className="text-xs text-slate-500">{media.length}</span>
+          </div>
+          {media.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-white/10 py-8 text-slate-500">
+              <ImageIcon className="w-6 h-6" />
+              <p className="text-xs">Photos you share will show up here</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5">
+              {media.map((url, i) => (
+                <button key={`${url}-${i}`} onClick={() => onOpenImage(url)} className="aspect-square overflow-hidden rounded-lg cursor-zoom-in">
+                  <img src={url} alt="" className="h-full w-full object-cover transition hover:scale-105" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </aside>
   );
 };
 

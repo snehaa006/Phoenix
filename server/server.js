@@ -3,60 +3,42 @@ import "dotenv/config";
 import cors from "cors";
 import http from "http";
 import { connectDB } from "./lib/db.js";
+import { initSocket } from "./lib/socket.js";
 import userRouter from "./routes/userRoutes.js";
 import messageRouter from "./routes/messageRoutes.js";
-import {Server} from "socket.io";
 
-
-//create Express app and HTTP server
-
+//create Express app and HTTP server (socket.io needs the raw http server)
 const app = express();
-const server = http.createServer(app) //socket.io supports http server
+const server = http.createServer(app);
 
-//Initialize Socekt.io server
-export const io = new Server(server, {
-    cors: {
-        origin: "*",
-    }
-})
-//store online users
-export const userSocketMap = {}; //userId: SocketId;
-
-
-//Socket.io Connection handler
-io.on("connection", (socket)=>{
-    const userId = socket.handshake.query.userId;
-    console.log("User Connected", userId);
-
-    if(userId){ 
-        userSocketMap[userId] = socket.id
-    }
-
-    //Emit online users to all connected clients
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
-    socket.on("disconnect", ()=>{
-        console.log("User Disconnected, userId");
-        delete userSocketMap[userId];
-        io.emit("getOnlineUsers", Object.keys(userSocketMap));
-    })
-})
+//Initialize Socket.io server
+initSocket(server);
 
 //Middleware setup
-//(we add express.json so that all requests to this server will be passed using json method)
-app.use(express.json({limit: "4mb"}));//maximum limit memory upload for images can be 4mb
-
+//images are sent as base64 strings, so allow bodies up to 6mb (~4mb image)
+app.use(express.json({ limit: "6mb" }));
 app.use(cors());
 
 //Routes setup
-app.use("/api/status", (req, res)=> res.send("Server is live.")); //to check whether backend server is running or not, we add api endpoint
-app.use("/api/auth", userRouter)
-app.use("/api/messages", messageRouter)
+app.use("/api/status", (req, res) => res.send("Server is live."));
+app.use("/api/auth", userRouter);
+app.use("/api/messages", messageRouter);
+
+//Payload too large / malformed json -> json error instead of an html page
+app.use((err, req, res, next) => {
+    if (err.type === "entity.too.large") {
+        return res.status(413).json({ success: false, message: "File is too large (max 4MB)" });
+    }
+    console.log(err.message);
+    res.status(err.status || 500).json({ success: false, message: "Something went wrong" });
+});
+
 //Connect to MongoDB
 await connectDB();
 
-if(process.env.NODE_ENV !== "production"){
-    const PORT = process.env.PORT || 5001; //if port mentioned then that is use, otherwise 5001
-    server.listen(PORT,()=> console.log("Server is running on PORT: " + PORT)); //to start server
+if (process.env.NODE_ENV !== "production") {
+    const PORT = process.env.PORT || 5001;
+    server.listen(PORT, () => console.log("Server is running on PORT: " + PORT));
 }
 //export server for vercel
-export default server; 
+export default server;
