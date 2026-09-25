@@ -6,9 +6,3 @@ export const generateToken = (userId)=>{
     return token;
 }
 
-//strip the password hash before a user document is sent to the client
-export const toPublicUser = (user)=>{
-    const obj = user.toObject ? user.toObject() : { ...user };
-    delete obj.password;
-    return obj;
-}
