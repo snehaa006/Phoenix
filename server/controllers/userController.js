@@ -1,7 +1,7 @@
 //functions to sign up, log in, authenticate and update a user's profile
 import bcrypt from "bcryptjs"
 import User from "../models/User.js";
-import { generateToken, toPublicUser } from "../lib/utils.js";
+import { generateToken } from "../lib/utils.js";
 import cloudinary from "../lib/cloudinary.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -23,8 +23,10 @@ export const signup = async (req, res)=>{
         if(password.length < 6){
             return res.json({success: false, message: "Password must be at least 6 characters"})
         }
-        const user =  await User.findOne({email});
-        if(user){
+        if(fullName.length > 50 || bio.length > 160){
+            return res.json({success: false, message: "Name must be 50 characters or less and bio 160 or less"})
+        }
+        if(await User.existsByEmail(email)){
             return res.json({success: false, message: "An account with this email already exists"});
         }
 
@@ -33,9 +35,12 @@ export const signup = async (req, res)=>{
 
         const newUser = await User.create({fullName, email, password: hashedPassword, bio});
         const token = generateToken(newUser._id);
-        res.json({success: true, userData: toPublicUser(newUser), token, message: "Account created successfully"})
+        res.json({success: true, userData: newUser, token, message: "Account created successfully"})
     }catch(error){
         console.log(error.message);
+        if(/UNIQUE/i.test(error.message)){
+            return res.json({success: false, message: "An account with this email already exists"});
+        }
         res.json({success: false,  message: error.message})
     }
 }
@@ -48,13 +53,14 @@ export const login = async (req, res)=> {
         if(!email || !password){
             return res.json({success: false, message: "Please enter your email and password"})
         }
-        const userData = await User.findOne({email});
+        const userData = await User.findByEmailWithPassword(email);
         //same message for unknown email and wrong password, so accounts can't be enumerated
         if(!userData || !(await bcrypt.compare(password, userData.password))){
             return res.json({success: false,  message: "Invalid email or password"})
         }
+        delete userData.password;
         const token = generateToken(userData._id);
-        res.json({success: true, userData: toPublicUser(userData), token, message: `Welcome back, ${userData.fullName.split(" ")[0]}!`}) 
+        res.json({success: true, userData, token, message: `Welcome back, ${userData.fullName.split(" ")[0]}!`}) 
     }catch(error){
         console.log(error.message);
         res.json({success: false,  message: error.message})
@@ -78,12 +84,19 @@ export const updateProfile = async(req, res)=>{
             return res.json({success: false, message: "Name cannot be empty"});
         }
 
+        if(fullName.length > 50){
+            return res.json({success: false, message: "Name must be 50 characters or less"});
+        }
+        if(bio.length > 160){
+            return res.json({success: false, message: "Bio must be 160 characters or less"});
+        }
+
         const update = {bio, fullName};
         if(profilePic){
             const upload = await cloudinary.uploader.upload(profilePic);
             update.profilePic = upload.secure_url;
         }
-        const updatedUser = await User.findByIdAndUpdate(userId, update, {new: true, runValidators: true}).select("-password");
+        const updatedUser = await User.update(userId, update);
         res.json({success: true, user: updatedUser});
 
     }catch(error){
