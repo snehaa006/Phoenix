@@ -1,13 +1,12 @@
-import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { SCHEMA } from "./schema.js";
 
 // Cloudflare D1 is SQLite at the edge. This server talks to it over the D1 HTTP API:
 // https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/
 // Without Cloudflare credentials (local development only) it falls back to a local SQLite file.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCHEMA_FILE = path.join(__dirname, "../migrations/0001_init.sql");
 
 const { CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, CLOUDFLARE_API_TOKEN } = process.env;
 const useD1 = Boolean(CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_D1_DATABASE_ID && CLOUDFLARE_API_TOKEN);
@@ -51,14 +50,15 @@ export const queryOne = async (sql, params) => (await query(sql, params)).rows[0
 
 //create tables if they don't exist yet
 export const connectDB = async () => {
-    const schema = fs.readFileSync(SCHEMA_FILE, "utf8");
+    const schema = SCHEMA;
     if (useD1) {
         await d1Query(schema, []);
         console.log("Connected to Cloudflare D1");
         return;
     }
-    if (process.env.NODE_ENV === "production") {
-        throw new Error("Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID and CLOUDFLARE_API_TOKEN");
+    if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+        const missing = ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_D1_DATABASE_ID", "CLOUDFLARE_API_TOKEN"].filter((k) => !process.env[k]);
+        throw new Error(`Missing environment variables: ${missing.join(", ")}`);
     }
     const { DatabaseSync } = await import("node:sqlite");
     const file = process.env.LOCAL_DB_PATH || path.join(__dirname, "../local.db");
