@@ -14,13 +14,36 @@ const server = http.createServer(app);
 //Initialize Socket.io server
 initSocket(server);
 
-//Middleware setup
+//CORS first, so even error responses carry the headers the browser needs
+app.use(cors());
+app.options(/.*/, cors());
+
 //images are sent as base64 strings, so allow bodies up to 6mb (~4mb image)
 app.use(express.json({ limit: "6mb" }));
-app.use(cors());
+
+app.use("/api/status", (req, res) => res.send("Server is live."));
+
+//Connect to the database lazily; if it fails, report why and retry on the next request
+//instead of crashing the whole function (which shows up in the browser as a CORS error)
+let dbReady;
+const ensureDB = () => {
+    dbReady ??= connectDB().catch((error) => {
+        dbReady = undefined;
+        throw error;
+    });
+    return dbReady;
+};
+app.use(async (req, res, next) => {
+    try {
+        await ensureDB();
+        next();
+    } catch (error) {
+        console.log("Database unavailable:", error.message);
+        res.status(503).json({ success: false, message: `Database unavailable: ${error.message}` });
+    }
+});
 
 //Routes setup
-app.use("/api/status", (req, res) => res.send("Server is live."));
 app.use("/api/auth", userRouter);
 app.use("/api/messages", messageRouter);
 
@@ -33,10 +56,8 @@ app.use((err, req, res, next) => {
     res.status(err.status || 500).json({ success: false, message: "Something went wrong" });
 });
 
-//Connect to MongoDB
-await connectDB();
-
-if (process.env.NODE_ENV !== "production") {
+if (!process.env.VERCEL) { //Vercel runs the exported server itself
+    ensureDB().catch((error) => console.log("Database unavailable:", error.message));
     const PORT = process.env.PORT || 5001;
     server.listen(PORT, () => console.log("Server is running on PORT: " + PORT));
 }
